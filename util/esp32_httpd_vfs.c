@@ -18,7 +18,7 @@ Connector to let httpd use the vfs filesystem to serve the files in it.
 #include "cJSON.h"
 
 #define FILE_CHUNK_LEN    (1024)
-#define MAX_FILENAME_LENGTH (1024)
+#define MAX_FILENAME_LENGTH (255)
 
 // If the client does not advertise that he accepts GZIP send following warning message (telnet users for e.g.)
 static const char *gzipNonSupportedMessage = "HTTP/1.0 501 Not implemented\r\nServer: esp8266-httpd/"HTTPDVER"\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: 52\r\n\r\nYour browser does not accept gzip-compressed data.\r\n";
@@ -50,7 +50,7 @@ CgiStatus ICACHE_FLASH_ATTR cgiEspVfsGet(HttpdConnData *connData) {
 	char acceptEncodingBuffer[64];
 	int isGzip;
 	bool isIndex = false;
-	struct stat filestat;	
+	struct stat filestat;
 
 	if (connData->isConnectionClosed) {
 		//Connection aborted. Clean up.
@@ -74,7 +74,7 @@ CgiStatus ICACHE_FLASH_ATTR cgiEspVfsGet(HttpdConnData *connData) {
 		}
 		strncat(filename, connData->url, MAX_FILENAME_LENGTH - strlen(filename));
 		ESP_LOGD(__func__, "GET: %s", filename);
-		
+
 		if(filename[strlen(filename)-1]=='/') filename[strlen(filename)-1]='\0';
 		if(stat(filename, &filestat) == 0) {
 			if((isIndex = S_ISDIR(filestat.st_mode))) {
@@ -85,20 +85,21 @@ CgiStatus ICACHE_FLASH_ATTR cgiEspVfsGet(HttpdConnData *connData) {
 		file = fopen(filename, "r");
 		if (file != NULL) ESP_LOGD(__func__, "fopen: %s, r", filename);
 		isGzip = 0;
-		
+
 		if (file==NULL) {
 			// Check if requested file is available GZIP compressed ie. with file extension .gz
-		
+
 			strncat(filename, ".gz", MAX_FILENAME_LENGTH - strlen(filename));
 			ESP_LOGD(__func__, "GET: GZIPped file - %s", filename);
 			file = fopen(filename, "r");
 			if (file != NULL) ESP_LOGD(__func__, "fopen: %s, r", filename);
 			isGzip = 1;
-			
+
 			if (file==NULL) {
+				ESP_LOGE(__func__, "404");
 				return HTTPD_CGI_NOTFOUND;
-			}				
-		
+			}
+
 			// Check the browser's "Accept-Encoding" header. If the client does not
 			// advertise that he accepts GZIP send a warning message (telnet users for e.g.)
 			httpdGetHeader(connData, "Accept-Encoding", acceptEncodingBuffer, 64);
@@ -289,7 +290,7 @@ typedef struct {
 
 CgiStatus   cgiEspVfsUpload(HttpdConnData *connData) {
 	UploadState *state=(UploadState *)connData->cgiData;
-    
+
 	if (connData->isConnectionClosed) {
 		//Connection aborted. Clean up.
 		if (state != NULL)
